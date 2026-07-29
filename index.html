@@ -725,7 +725,6 @@
      فبنستخدم ملف /students.json كدليل بيربط الأسماء بأرقام الجلوس.
      أي طالب موجود في الدليل بيتبحث اسمه، وبعد ما يتختار بيتجاب Live من الـ Proxy. */
   let nameManifest = null;
-  const nameCache = new Map();
 
   async function loadNameManifest() {
     if (nameManifest) return nameManifest;
@@ -984,6 +983,8 @@
         showNameMatches(r.matches, q);
       } else if (r.status === 'short') {
         showEmpty('اكتب أكثر', 'اكتب على الأقل <b>3 حروف</b> من الاسم.');
+      } else if (r.status === 'broad') {
+        showEmpty('بحث عام جداً', 'يرجى كتابة اسم ثنائي أو ثلاثي لتضييق نطاق البحث.');
       } else if (r.status === 'no-directory') {
         showEmpty(
           'دليل الأسماء فارغ',
