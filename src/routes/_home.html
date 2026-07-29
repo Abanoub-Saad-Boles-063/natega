@@ -717,41 +717,79 @@
      مصادر البيانات الرسمية (المصدر الرسمي / صدى البلد) ما بتدعمش البحث بالاسم،
      فبنستخدم ملف /students.json كدليل بيربط الأسماء بأرقام الجلوس.
      أي طالب موجود في الدليل بيتبحث اسمه، وبعد ما يتختار بيتجاب Live من الـ Proxy. */
-  let studentsDirectory = null;
+  let nameManifest = null;
+  const nameCache = new Map();
 
-  async function loadStudentsDirectory() {
-    if (studentsDirectory) return studentsDirectory;
-    try {
-      const res = await fetch('./students.json', { cache: 'no-cache' });
-      if (!res.ok) throw new Error('no directory');
-      const j = await res.json();
-      const list = Array.isArray(j) ? j : (j.students || []);
-      studentsDirectory = list
-        .filter(s => s && s.name && s.seat)
-        .map(s => ({ name: String(s.name), seat: Number(s.seat), key: nameKey(s.name) }));
-    } catch(_) {
-      studentsDirectory = [];
+  async function loadNameManifest() {
+    if (nameManifest) return nameManifest;
+    const text = await fetchRemote('data/manifest.json');
+    nameManifest = JSON.parse(text);
+    return nameManifest;
+  }
+
+
+
+  function nameShardRange(q) {
+    const firsts = nameManifest.name.firsts;
+    const hi = q + '\uFFFF';
+    let lo = 0, a = 0, b = firsts.length - 1;
+    while (a <= b) {
+      const mid = (a + b) >> 1;
+      if (firsts[mid] <= q) { lo = mid; a = mid + 1; } else b = mid - 1;
     }
-    return studentsDirectory;
+    let up = lo; a = lo; b = firsts.length - 1;
+    while (a <= b) {
+      const mid = (a + b) >> 1;
+      if (firsts[mid] <= hi) { up = mid; a = mid + 1; } else b = mid - 1;
+    }
+    return [lo, up];
+  }
+
+  async function loadNameShard(shardId) {
+    if (nameCache.has(shardId)) return nameCache.get(shardId);
+    const text = await fetchRemote('data/name/' + shardId + '.txt');
+    const rows = [];
+    for (const line of text.split(/\r?\n/)) {
+      const p = line.split('|');
+      if (p.length < 4) continue;
+      const st = { name: p[0], seat: +p[1] };
+      st.key = nameKey(st.name);
+      rows.push(st);
+    }
+    nameCache.set(shardId, rows);
+    if (nameCache.size > 6) {
+      nameCache.delete(nameCache.keys().next().value);
+    }
+    return rows;
   }
 
   async function lookupName(rawQuery) {
+    await loadNameManifest();
     const q = nameKey(rawQuery);
     if (!q) return { status: 'empty' };
-    if (q.length < 3) return { status: 'short' };
+    if (q.length < 4) return { status: 'short' };
 
-    const dir = await loadStudentsDirectory();
-    if (!dir.length) return { status: 'no-directory' };
+    const [lo, up] = nameShardRange(q);
+    const span = up - lo + 1;
+    if (span > 3) return { status: 'broad', span };
 
-    // مطابقة من أول الاسم
-    const exact = dir.filter(s => s.key.startsWith(q));
+    const shards = [];
+    for (let i = lo; i <= up; i++) shards.push(loadNameShard(i));
+    const loaded = await Promise.all(shards);
+
+    const exact = [];
+    for (const rows of loaded) {
+      for (const st of rows) if (st.key.startsWith(q)) exact.push(st);
+    }
     if (exact.length) return { status: 'ok', matches: exact };
 
-    // مطابقة أي جزء من الاسم
     const parts = String(rawQuery).trim().split(/\s+/).map(nameKey).filter(Boolean);
-    const loose = parts.length
-      ? dir.filter(s => parts.every(p => s.key.includes(p)))
-      : dir.filter(s => s.key.includes(q));
+    const loose = [];
+    if (parts.length > 1) {
+      for (const rows of loaded) {
+        for (const st of rows) if (parts.every(p => st.key.includes(p))) loose.push(st);
+      }
+    }
     return loose.length ? { status: 'ok', matches: loose, loose: true } : { status: 'none' };
   }
 
