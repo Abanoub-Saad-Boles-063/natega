@@ -547,6 +547,13 @@
   const API_BASE = 'https://pixel-perfect-render-858.lovable.app';
   const RESULT_API = (API_BASE || '') + '/api/public/y7-result';
 
+  const REMOTE_BASE = 'https://natiga-thanawy.vercel.app';
+  const CORS_STRATEGIES = [
+    url => url,
+    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+    url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  ];
+
   const GRADES = [
     { min: 90, label: 'امتياز', emoji: '🏆' },
     { min: 80, label: 'جيد جدًا', emoji: '⭐' },
