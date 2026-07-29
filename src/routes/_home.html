@@ -722,7 +722,7 @@
   async function loadStudentsDirectory() {
     if (studentsDirectory) return studentsDirectory;
     try {
-      const res = await fetch((API_BASE || '') + '/students.json', { cache: 'no-cache' });
+      const res = await fetch('./students.json', { cache: 'no-cache' });
       if (!res.ok) throw new Error('no directory');
       const j = await res.json();
       const list = Array.isArray(j) ? j : (j.students || []);
